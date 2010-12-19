@@ -1,27 +1,22 @@
-/* Copyright (C) 2007 Cosmin Gorgovan <cosmin AT linux-geek.org>
+/*  qshttpd is a lightweight HTTP server.
+    Copyright (C) 2007, 2010 Cosmin Gorgovan <cosmin AT linux-geek.org>
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, version 2 of the License.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>. 
+*/
 
-/* qshttpd is a lightweight http server. It was tested only under Linux.
-It is quite fast when handling small files, actually about 6 times faster
-then Apache. I think it is useful to serve static content from your site. 
-Home page: www.linux-geek.org/qshttpd/ */
-
-/* Version 0.3.0 - alpha software
+/* Version 0.3.1 - alpha software
 See qshttpd.conf for a configuration example. */
-
-/* TODO: logging, virtual hosts */
 
 #include <stdio.h>
 #include <stdlib.h>
