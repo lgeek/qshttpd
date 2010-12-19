@@ -1,4 +1,4 @@
-/* Copyright (C) 2007 Cosmin Gorgovan <cosmin@linux-geek.org>
+/* Copyright (C) 2007 Cosmin Gorgovan <cosmin AT linux-geek.org>
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
