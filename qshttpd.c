@@ -135,12 +135,44 @@ void create_and_bind(Conf configuration) {
     }
 }
 
+struct request {
+    char *get;
+    long resume;
+    char *host;
+};
+typedef struct request Request;
+
+Request process_request (char *buffer) {
+    Request request;
+    
+    char *line = strtok(buffer, "\n\r");
+    do {
+        if (strncmp(line, "GET", 3) == 0) {
+            line += 4;
+            int path_length = strpbrk(line, " ") - line;
+            request.get = calloc(1, path_length + 1);
+            strncpy(request.get, line, path_length);
+        } else if (strncmp(line, "Range: bytes=", 13) == 0){
+            line += 13;
+            request.resume = atoi(line);
+        } else if (strncmp(line, "Host:", 5) == 0) {
+            line += 6;
+            request.host = malloc(strlen(line) + 1);
+            strncpy(request.host, line, strlen(line) + 1);
+            printf("%s\n\n", request.host);
+        }
+    } while ((line = strtok(NULL, "\n\r")) != NULL);
+    
+    return request;
+}
+
 int main(void)
 {
     char in[3000],  sent[500], code[50], file[200], mime[100], moved[200], length[100], auth[200], auth_dir[500], start[100], end[100];
     char *result=NULL, *hostname, *hostnamef, *lines, *ext=NULL, *extf, *auth_dirf=NULL, *authf=NULL, *rangetmp;
     int buffer_chunks;
     long filesize, range=0;
+    Request request;
 
     Conf configuration = get_conf();
     create_and_bind(configuration);
@@ -157,54 +189,43 @@ int main(void)
         if (!fork()) {
             close(sockfd);
             if (read(new_fd, in, 3000) == -1) {
-                perror("recive");
+                perror("receive");
             } else {
-                lines = strtok(in, "\n\r");
-                do {
-                    hostname = strtok(NULL, "\n\r");
-                    if (hostname[0] == 'R' && hostname[1] == 'a' && hostname[2] == 'n' && hostname[3] == 'g' && hostname[4] == 'e') {
-                        rangetmp = hostname;
-                        strcpy(code, "206 Partial Content");
-                    }
-                } while (hostname[0] != 'H' || hostname[1] != 'o' || hostname[2] != 's' || hostname[3] != 't');
-                hostnamef = strtok(hostname, " ");
-                hostnamef = strtok(NULL, " ");
-                result = strtok(lines, " ");
-                result = strtok(NULL, " ");
+                request = process_request(in);
 
-                if (strcmp(code, "206 Partial Content") == 0 ) {
-                    rangetmp = strtok(strpbrk(rangetmp, "="), "=-");
-                    range = atoi(rangetmp);
-                }
-
-                strcpy(file, result);
-                if (opendir(file)){
-                    if (file[strlen(file)-1] == '/'){
-                        strcat(file, "/index.html");
-                        openfile=fopen (file, "r");
+                // If requested path is a directory
+                if (opendir(request.get)) {
+                    // Last char is /
+                    if (request.get[strlen(request.get)-1] == '/'){
+                        // The user knows this is a directory so we serve the directory index
+                        strcat(request.get, "index.html");
+                        openfile=fopen (request.get, "r");
                         if (openfile){
                             strcpy(code, "200 OK");
                         } else {
                             //Here should be some kind of directory listing
                             strcpy(file, "/404.html");
-                            openfile = fopen (file, "r");
+                            openfile = fopen (request.get, "r");
                             strcpy(code, "404 Not Found");
                         }
+                    // Last char isn't / so we redirect the browser to the directory
                     } else {
                         strcpy(code, "301 Moved Permanently");
                         strcpy(moved, "Location: http://");
-                        strcat(moved, hostnamef);
-                        strcat(moved, result);
+                        strcat(moved, request.host);
+                        strcat(moved, request.get);
                         strcat(moved, "/");
                     }
+
+                // Requested path isn't a directory
                 } else {
-                    openfile=fopen (file, "rb");
+                    openfile=fopen (request.get, "rb");
                     if (openfile){
                         if (strlen(code) < 1) {
                             strcpy (code, "200 OK");
                         }
                     } else {
-                        strcpy(file, "/404.html");
+                        strcpy(request.get, "/404.html");
                         openfile = fopen (file, "r");
                         strcpy(code, "404 Not Found");
                     }
@@ -230,7 +251,7 @@ int main(void)
             }
 
             if (strcmp(code, "404 Not Found") != 0 && strcmp(code, "301 Moved Permanently") !=0) {
-                ext = strtok(file, ".");
+                ext = strtok(request.get, ".");
                 while(ext != NULL){
                     ext = strtok(NULL, ".");
                     if (ext != NULL){
