@@ -56,8 +56,8 @@ void read_chunk() {
 
 int main(void)
 {
-    char in[3000],  sent[500], code[50], file[200], mime[100], moved[200], length[100], auth[200], auth_dir[500], start[100], end[100];
-    char *result=NULL, *hostname, *hostnamef, *lines, *ext=NULL, *extf, *auth_dirf=NULL, *authf=NULL, *rangetmp;
+    char in[3000],  sent[500], code[50], file[200], mime[100], moved[200], length[100], start[100], end[100];
+    char *ext=NULL, *extf;
     int buffer_chunks;
     long filesize, range=0;
     Request request;
