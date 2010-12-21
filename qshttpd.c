@@ -32,15 +32,17 @@ See qshttpd.conf for a configuration example. */
 #include <pwd.h>
 #include <grp.h>
 
-#include "conf.c"
-
 #define BACKLOG 10
+
+#include "conf.c"
+#include "util.c"
+#include "http.c"
 
 //Sockets stuff
 int sockfd, new_fd;
 struct sockaddr_in their_addr;
 socklen_t sin_size;
-struct sigaction sa;
+
 
 //Other global variables
 int buffer_counter;
@@ -52,120 +54,6 @@ void read_chunk() {
     buffer_counter++;
 }
 
-void sigchld_handler(int s)
-{
-    while(waitpid(-1, NULL, WNOHANG) > 0);
-}
-
-//Chroot and change user and group to nobody. Got this function from Simple HTTPD 1.0.
-void drop_privileges(Conf configuration) {
-    struct passwd *pwd;
-    struct group *grp;
-
-    if ((pwd = getpwnam(configuration.user)) == 0) {
-        fprintf(stderr, "User not found in /etc/passwd\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if ((grp = getgrnam(configuration.group)) == 0) {
-        fprintf(stderr, "Group not found in /etc/group\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if (chdir(configuration.root) != 0) {
-        fprintf(stderr, "chdir(...) failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (chroot(configuration.root) != 0) {
-        fprintf(stderr, "chroot(...) failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setgid(grp->gr_gid) != 0) {
-        fprintf(stderr, "setgid(...) failed\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setuid(pwd->pw_uid) != 0) {
-        fprintf(stderr, "setuid(...) failed\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-
-
-void create_and_bind(Conf configuration) {
-    int yes=1;
-    struct sockaddr_in my_addr;
-
-    if ((sockfd = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-        perror("socket");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt(sockfd,SOL_SOCKET,SO_REUSEADDR,&yes,sizeof(int)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(configuration.port);
-    my_addr.sin_addr.s_addr = INADDR_ANY;
-    memset(&(my_addr.sin_zero), '\0', 8);
-
-    if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1) {
-        perror("bind");
-        exit(EXIT_FAILURE);
-    }
-
-    drop_privileges(configuration);
-
-    if (listen(sockfd, BACKLOG) == -1) {
-        perror("listen");
-        exit(EXIT_FAILURE);
-    }
-
-    sa.sa_handler = sigchld_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("sigaction");
-        exit(EXIT_FAILURE);
-    }
-}
-
-struct request {
-    char *get;
-    long resume;
-    char *host;
-};
-typedef struct request Request;
-
-Request process_request (char *buffer) {
-    Request request;
-    
-    char *line = strtok(buffer, "\n\r");
-    do {
-        if (strncmp(line, "GET", 3) == 0) {
-            line += 4;
-            int path_length = strpbrk(line, " ") - line;
-            request.get = calloc(1, path_length + 1);
-            strncpy(request.get, line, path_length);
-        } else if (strncmp(line, "Range: bytes=", 13) == 0){
-            line += 13;
-            request.resume = atoi(line);
-        } else if (strncmp(line, "Host:", 5) == 0) {
-            line += 6;
-            request.host = malloc(strlen(line) + 1);
-            strncpy(request.host, line, strlen(line) + 1);
-            printf("%s\n\n", request.host);
-        }
-    } while ((line = strtok(NULL, "\n\r")) != NULL);
-    
-    return request;
-}
-
 int main(void)
 {
     char in[3000],  sent[500], code[50], file[200], mime[100], moved[200], length[100], auth[200], auth_dir[500], start[100], end[100];
@@ -175,7 +63,7 @@ int main(void)
     Request request;
 
     Conf configuration = get_conf();
-    create_and_bind(configuration);
+    sockfd = create_and_bind(configuration);
 
     //Important stuff happens here.
 
