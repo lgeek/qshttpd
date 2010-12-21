@@ -32,11 +32,9 @@ See qshttpd.conf for a configuration example. */
 #include <pwd.h>
 #include <grp.h>
 
-#define BACKLOG 10
+#include "conf.c"
 
-//Variables used in get_conf().
-char conf[5], dir[500], port[10], charset[200], user[100], group[100];
-int portf;
+#define BACKLOG 10
 
 //Sockets stuff
 int sockfd, new_fd;
@@ -60,26 +58,26 @@ void sigchld_handler(int s)
 }
 
 //Chroot and change user and group to nobody. Got this function from Simple HTTPD 1.0.
-void drop_privileges() {
+void drop_privileges(Conf configuration) {
     struct passwd *pwd;
     struct group *grp;
 
-    if ((pwd = getpwnam(user)) == 0) {
+    if ((pwd = getpwnam(configuration.user)) == 0) {
         fprintf(stderr, "User not found in /etc/passwd\n");
         exit(EXIT_FAILURE);
     }
 
-    if ((grp = getgrnam(group)) == 0) {
+    if ((grp = getgrnam(configuration.group)) == 0) {
         fprintf(stderr, "Group not found in /etc/group\n");
         exit(EXIT_FAILURE);
     }
     
-    if (chdir(dir) != 0) {
+    if (chdir(configuration.root) != 0) {
         fprintf(stderr, "chdir(...) failed\n");
         exit(EXIT_FAILURE);
     }
 
-    if (chroot(dir) != 0) {
+    if (chroot(configuration.root) != 0) {
         fprintf(stderr, "chroot(...) failed\n");
         exit(EXIT_FAILURE);
     }
@@ -95,42 +93,9 @@ void drop_privileges() {
     }
 }
 
-void get_conf() {
-    FILE *conffile;
-    conffile = fopen ("/etc/qshttpd.conf", "r");
 
-    while (fgets (conf , 6, conffile)) {
-        if (strcmp (conf, "ROOT=") == 0){
-            fgets (dir, 500, conffile);
-            strtok(dir, "\n");
-            printf("Root: %s\n", dir);
-        }
-        
-        if (strcmp (conf, "PORT=") == 0){
-            fgets (port, 10, conffile);
-            portf=atoi(port);
-        }
-        
-        if (strcmp (conf, "CHAR=") == 0){
-            fgets (charset, 200, conffile);
-            strtok(charset, "\n");
-        }
-        
-        if (strcmp (conf, "USER=") == 0){
-            fgets (user, 100, conffile);
-            strtok(user, "\n");
-        }
-        
-        if (strcmp (conf, "GRUP=") == 0){
-            fgets (group, 100, conffile);
-            strtok(group, "\n");
-        }
-    } 
-    
-    fclose (conffile);
-}
 
-void create_and_bind() {
+void create_and_bind(Conf configuration) {
     int yes=1;
     struct sockaddr_in my_addr;
 
@@ -145,7 +110,7 @@ void create_and_bind() {
     }
 
     my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(portf);
+    my_addr.sin_port = htons(configuration.port);
     my_addr.sin_addr.s_addr = INADDR_ANY;
     memset(&(my_addr.sin_zero), '\0', 8);
 
@@ -154,7 +119,7 @@ void create_and_bind() {
         exit(EXIT_FAILURE);
     }
 
-    drop_privileges();
+    drop_privileges(configuration);
 
     if (listen(sockfd, BACKLOG) == -1) {
         perror("listen");
@@ -177,8 +142,8 @@ int main(void)
     int buffer_chunks;
     long filesize, range=0;
 
-    get_conf();
-    create_and_bind();
+    Conf configuration = get_conf();
+    create_and_bind(configuration);
 
     //Important stuff happens here.
 
@@ -250,16 +215,16 @@ int main(void)
                 filesize = ftell (openfile);
                 rewind (openfile);
                 if (range > 0) {
-                    sprintf(end, "%d", filesize);
+                    sprintf(end, "%ld", filesize);
                     filesize = filesize - range;
-                    sprintf(start, "%d", range);
+                    sprintf(start, "%ld", range);
                     fseek (openfile , range , SEEK_SET);
                 }
                 buffer_chunks = filesize/1048576;
                 if(filesize%1048576 > 0){
                     buffer_chunks++;
                 }
-                sprintf(length, "%d", filesize);
+                sprintf(length, "%ld", filesize);
                 buffer_counter = 0;
                 buffer = (char*) malloc (sizeof(char)*1048576);
             }
@@ -316,7 +281,7 @@ int main(void)
             strcat(sent, "\nConnection: close\nContent-Type: ");
             strcat(sent, mime);
             strcat(sent, "; charset=");
-            strcat(sent, charset);
+            strcat(sent, configuration.charset);
             strcat(sent, "\n\n");
             write(new_fd, sent, strlen(sent));
             while (buffer_counter < buffer_chunks) {
